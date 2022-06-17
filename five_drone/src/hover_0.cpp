@@ -8,12 +8,14 @@
 #include<std_msgs/Float64.h>
 
 mavros_msgs::State current_state;
+bool flag=false;
+five_drone::Data msg;
+std::float dif_x,dif_y,dif_z;
+std::int leader;
+
 void state_cb(const mavros_msgs::State::ConstPtr& msg){
     current_state = *msg;
 }
-
-
-bool flag=false;
 
 bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
 {
@@ -29,6 +31,12 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
     }
     res.success=true;
     return true;
+}
+
+void leader_callback(five_drone::Data msg)
+{
+    // data = msg.message.data;
+    leader = msg.a;
 }
 
 int main(int argc, char **argv)
@@ -48,6 +56,10 @@ int main(int argc, char **argv)
 
     ros::ServiceServer server=nh.advertiseService("start",callback);
     ros::ServiceClient client=nh.serviceClient<std_srvs::SetBool>("start");
+
+    ros::Publisher pub = nh.advertise<five_drone::Data>("leader_who",10);
+    ros::Subscriber leader_sub = nh.subscribe<five_drone::Data>
+            ("leader_who", 10, leader_callback);
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -100,6 +112,10 @@ int main(int argc, char **argv)
 
         if(flag == true)
         {
+            msg.message.data = "Leader is";
+            msg.a = 0;
+            pub.publish(msg);
+
             pose.pose.position.x = 2;
             pose.pose.position.y = 0;
             pose.pose.position.z = 3;
