@@ -3,10 +3,32 @@
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>
+#include <five_drone/Data.h>
+#include<std_srvs/SetBool.h>
+#include<std_msgs/Float64.h>
 
 mavros_msgs::State current_state;
 void state_cb(const mavros_msgs::State::ConstPtr& msg){
     current_state = *msg;
+}
+
+
+bool flag=false;
+
+bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
+{
+    if (req.data==true)
+    {
+        flag=true;
+        res.message="service true postive";
+    }
+    else
+    {
+        flag=false;
+        res.message="service true neg";
+    }
+    res.success=true;
+    return true;
 }
 
 int main(int argc, char **argv)
@@ -23,6 +45,9 @@ int main(int argc, char **argv)
             ("/uav0/mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("/uav0/mavros/set_mode");
+
+    ros::ServiceServer server=nh.advertiseService("start",callback);
+    ros::ServiceClient client=nh.serviceClient<std_srvs::SetBool>("start");
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -70,6 +95,14 @@ int main(int argc, char **argv)
                 }
                 last_request = ros::Time::now();
             }
+        }
+
+
+        if(flag == true)
+        {
+            pose.pose.position.x = 2;
+            pose.pose.position.y = 0;
+            pose.pose.position.z = 3;
         }
 
         local_pos_pub.publish(pose);
