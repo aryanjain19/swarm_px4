@@ -50,6 +50,8 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
         pose.pose.position.z = initial_z;
     }
     res.success=true;
+    ROS_INFO("rosservice was called");
+
     return true;
 }
 
@@ -61,7 +63,7 @@ void leader_callback(five_drone::Data msg)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "hover_1");
+    ros::init(argc, argv, "hover_0");
     ros::NodeHandle nh;
     // ros::NodeHandle nh_private("~");
 

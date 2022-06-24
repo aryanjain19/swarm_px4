@@ -3,16 +3,69 @@
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>
+#include <five_drone/Data.h>
+#include <std_srvs/SetBool.h>
+#include <std_msgs/Float64.h>
 
 mavros_msgs::State current_state;
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
+geometry_msgs::PoseStamped pose;
+const int drone = 2;
+int initial_x = 0, initial_y = 1, initial_z = 2;
+bool flag=false;
+five_drone::Data msg;
+float dif_x,dif_y,dif_z;
+int leader = -1;
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
     current_state = *msg;
+}
+
+bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
+{
+    if (req.data==true)
+    {
+        leader = drone;
+        res.message="service true postive";
+
+        msg.message.data = "Leader is";
+        msg.a = leader;
+        // pub.publish(msg);
+
+        pose.pose.position.x = initial_x;
+        pose.pose.position.y = initial_y;
+        pose.pose.position.z = initial_z+1;
+    }
+    else
+    {
+        leader = -1;
+        res.message="service true neg";
+
+        msg.message.data = "Leader is";
+        msg.a = leader;
+        // pub.publish(msg);
+
+        pose.pose.position.x = initial_x;
+        pose.pose.position.y = initial_y;
+        pose.pose.position.z = initial_z;
+    }
+    res.success=true;
+    ROS_INFO("rosservice was called");
+
+    return true;
+}
+
+void leader_callback(five_drone::Data msg)
+{
+    // data = msg.message.data;
+    leader = msg.a;
 }
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "hover_2");
+    ros::init(argc, argv, "hover_0");
     ros::NodeHandle nh;
+    // ros::NodeHandle nh_private("~");
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/uav2/mavros/state", 10, state_cb);
@@ -23,6 +76,13 @@ int main(int argc, char **argv)
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("/uav2/mavros/set_mode");
 
+    ros::ServiceServer server=nh.advertiseService("make_leader",callback);
+    ros::ServiceClient client=nh.serviceClient<std_srvs::SetBool>("make_leader");
+
+    ros::Publisher pub = nh.advertise<five_drone::Data>("/leader_who",10);
+    ros::Subscriber leader_sub = nh.subscribe<five_drone::Data>
+            ("/leader_who", 10, leader_callback);
+
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
 
@@ -32,10 +92,14 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
-    geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = 0;
-    pose.pose.position.y = 1;
-    pose.pose.position.z = 2;
+    // geometry_msgs::PoseStamped pose;
+    pose.pose.position.x = initial_x;
+    pose.pose.position.y = initial_y;
+    pose.pose.position.z = initial_z;
+
+    // intial service message
+    msg.message.data = "Leader is";
+    msg.a = -1;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
@@ -71,7 +135,11 @@ int main(int argc, char **argv)
             }
         }
 
+
         local_pos_pub.publish(pose);
+
+        if(leader == drone || leader == -1)
+        pub.publish(msg);
 
         ros::spinOnce();
         rate.sleep();
