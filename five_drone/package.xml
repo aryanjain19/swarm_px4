@@ -63,6 +63,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>sensor_msgs</depend>
+  <depend>geographic_msgs</depend>
 
 
 

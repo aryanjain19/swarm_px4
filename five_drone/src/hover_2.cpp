@@ -8,13 +8,15 @@
 #include <std_msgs/Float64.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <string>
+#include <geographic_msgs/GeoPoseStamped.h>
 
 mavros_msgs::State current_state;
-geometry_msgs::PoseStamped pose;
-sensor_msgs::NavSatFix pos_data, leader_pos_data;
+geometry_msgs::PoseStamped pose, pose_data, leader_pose;
+// sensor_msgs::NavSatFix leader_pos_data;
+// geographic_msgs::GeoPoseStamped tar_pos;
 float pos[3],leader_pos[3];
 const int drone = 2;
-int initial_x = 0, initial_y = 1, initial_z = 2;
+int initial_x = 0, initial_y = 0, initial_z = 2;
 bool flag=false;
 five_drone::Data msg;
 float dif_x,dif_y,dif_z;
@@ -73,13 +75,13 @@ void leader_callback(five_drone::Data msg)
     leader_pos[2] = msg.z;
 }
 
-void pos_sub_callback(const sensor_msgs::NavSatFix::ConstPtr& msg)
+void pos_sub_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     
-    pos_data = *msg;
-    pos[0] = pos_data.latitude;
-    pos[1] = pos_data.longitude;
-    pos[2] = pos_data.altitude;
+    pose_data = *msg;
+    pos[0] = pose_data.pose.position.x;
+    pos[1] = pose_data.pose.position.y;
+    pos[2] = pose_data.pose.position.z;
 
     // ROS_INFO("%f %f %f",pos[0],pos[1],pos[2]);
 }
@@ -106,8 +108,11 @@ int main(int argc, char **argv)
     ros::Subscriber leader_sub = nh.subscribe<five_drone::Data>
             ("/leader_who", 10, leader_callback);
 
-    ros::Subscriber pos_sub = nh.subscribe<sensor_msgs::NavSatFix>
-            ("/uav2/mavros/global_position/global", 10, pos_sub_callback);
+    ros::Subscriber pos_sub = nh.subscribe<geometry_msgs::PoseStamped>
+            ("/uav2/mavros/local_position/pose", 10, pos_sub_callback);
+    
+    // ros::Publisher global_pos_pub = nh.advertise<geographic_msgs::GeoPoseStamped>
+    //         ("/uav0/mavros/setpoint_position/global", 10);
     
 
     //the setpoint publishing rate MUST be faster than 2Hz
@@ -166,16 +171,29 @@ int main(int argc, char **argv)
         // if(flag==false)
         local_pos_pub.publish(pose);
 
-        if(leader == drone || leader == -1)
+        if(leader == -1)
         {
-            if(leader == drone && leader != -1)
-            {
-                msg.x = pos[0];
-                msg.y = pos[1];
-                msg.z = pos[2];
-            }
-            
             pub.publish(msg);
+            local_pos_pub.publish(pose);
+        }
+
+        if(leader == drone)
+        {            
+            msg.x = pos[0];
+            msg.y = pos[1];
+            msg.z = pos[2];    
+            pub.publish(msg);
+        }
+
+        if(leader != drone && leader != -1)
+        {
+            leader_pose.pose.position.x = leader_pos[0];
+            leader_pose.pose.position.y = leader_pos[1];
+            leader_pose.pose.position.z = leader_pos[2];
+
+            // ROS_INFO("Leader coords = %f %f %f",leader_pos[0],leader_pos[1],leader_pos[2]);
+
+            local_pos_pub.publish(leader_pose);
         }
         
 
