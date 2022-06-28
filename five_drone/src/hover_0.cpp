@@ -6,17 +6,13 @@
 #include <five_drone/Data.h>
 #include <std_srvs/SetBool.h>
 #include <std_msgs/Float64.h>
-#include <mavros_msgs/Waypoint.h>
-#include <mavros_msgs/WaypointPush.h>
-#include <mavros_msgs/CommandCode.h>
 #include <sensor_msgs/NavSatFix.h>
+#include <string>
 
 mavros_msgs::State current_state;
 geometry_msgs::PoseStamped pose;
-mavros_msgs::WaypointPush wp_push_srv; // List of Waypoints
-mavros_msgs::Waypoint wp;
-sensor_msgs::NavSatFix pos_data;
-float lati,logi,alt;
+sensor_msgs::NavSatFix pos_data, leader_pos_data;
+float pos[3],leader_pos[3];
 const int drone = 0;
 int initial_x = 0, initial_y = 0, initial_z = 2;
 bool flag=false;
@@ -38,62 +34,11 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
 
         msg.message.data = "Leader is";
         msg.a = leader;
-        // pub.publish(msg);
+        flag = true;
 
         pose.pose.position.x = initial_x;
         pose.pose.position.y = initial_y;
-        pose.pose.position.z = initial_z+1;
-
-        
-        // WP 0
-        wp.frame = 3;
-        wp.command = 22;  // takeoff
-        wp.is_current = false;
-        wp.autocontinue = true;
-        wp.param1 = 0;  // takeoff altitude
-        wp.param2 = 0;
-        wp.param3 = 0;
-        wp.param4 = 0;
-        wp.x_lat = -35.363578;
-        wp.y_long = 149.1656228;
-        wp.z_alt = 0;
-        wp_push_srv.request.waypoints.push_back(wp);
-        // WP 1
-        wp.frame = 3;
-        wp.command = 16;  // takeoff
-        wp.is_current = false;
-        wp.autocontinue = true;
-        wp.param1 = 0;  // takeoff altitude
-        wp.param2 = 0;
-        wp.param3 = 0;
-        wp.param4 = 0;
-        wp.x_lat = -35.363578;
-        wp.y_long = 149.1656228;
-        wp.z_alt = 0;
-        wp_push_srv.request.waypoints.push_back(wp);
-        
-        // // WP 2
-        // wp.frame          = mavros_msgs::Waypoint::FRAME_GLOBAL_REL_ALT;
-        // wp.command        = mavros_msgs::CommandCode::NAV_WAYPOINT;
-        // wp.is_current     = false;
-        // wp.autocontinue   = true;
-        // wp.x_lat          = 47.3977783;
-        // wp.y_long         = 10.547906;
-        // wp.z_alt          = 545.26191412;
-        // wp_push_srv.request.waypoints.push_back(wp);
-
-        // // WP 3
-        // wp.frame          = mavros_msgs::Waypoint::FRAME_MISSION;
-        // wp.command        = mavros_msgs::CommandCode::NAV_RETURN_TO_LAUNCH;
-        // wp.is_current     = false;
-        // wp.autocontinue   = true;
-        // wp.x_lat          = 47.3977783;
-        // wp.y_long         = 8.547906;
-        // wp.z_alt          = 538.26191412;
-        // wp_push_srv.request.waypoints.push_back(wp);
-
-        flag = true;
-        
+        pose.pose.position.z = initial_z+1;        
     }
     else
     {
@@ -102,6 +47,9 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
 
         msg.message.data = "Leader is";
         msg.a = leader;
+        msg.x = 0.0;
+        msg.y = 0.0;
+        msg.z = 0.0;
         // pub.publish(msg);
 
         pose.pose.position.x = initial_x;
@@ -120,19 +68,20 @@ void leader_callback(five_drone::Data msg)
 {
     // data = msg.message.data;
     leader = msg.a;
+    leader_pos[0] = msg.x;
+    leader_pos[1] = msg.y;
+    leader_pos[2] = msg.z;
 }
 
 void pos_sub_callback(const sensor_msgs::NavSatFix::ConstPtr& msg)
 {
     
     pos_data = *msg;
-    lati = pos_data.latitude;
-    logi = pos_data.longitude;
-    alt = pos_data.altitude;
+    pos[0] = pos_data.latitude;
+    pos[1] = pos_data.longitude;
+    pos[2] = pos_data.altitude;
 
-    // ROS_INFO("%f %f %f",lati,logi,alt);
-
-
+    // ROS_INFO("%f %f %f",pos[0],pos[1],pos[2]);
 }
 
 int main(int argc, char **argv)
@@ -157,13 +106,9 @@ int main(int argc, char **argv)
     ros::Subscriber leader_sub = nh.subscribe<five_drone::Data>
             ("/leader_who", 10, leader_callback);
 
-    ros::ServiceClient wp_client = nh.serviceClient<mavros_msgs::WaypointPush>
-            ("mavros/mission/push");
-    mavros_msgs::SetMode auto_set_mode;
-    auto_set_mode.request.custom_mode = "AUTO.MISSION";
-
     ros::Subscriber pos_sub = nh.subscribe<sensor_msgs::NavSatFix>
             ("/uav0/mavros/global_position/global", 10, pos_sub_callback);
+    
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -218,25 +163,21 @@ int main(int argc, char **argv)
         }
 
 
-        if(flag==false)
+        // if(flag==false)
         local_pos_pub.publish(pose);
 
         if(leader == drone || leader == -1)
-        pub.publish(msg);
-
-        if(leader == drone)
         {
-            if (wp_client.call(wp_push_srv)) 
+            if(leader == drone && leader != -1)
             {
-                ROS_INFO("Send waypoints ok: %d", wp_push_srv.response.success);
-                if (current_state.mode != "AUTO.MISSION") {
-                    if( set_mode_client.call(auto_set_mode) &&
-                        auto_set_mode.response.mode_sent){
-                        ROS_INFO("AUTO.MISSION enabled");
-                    }
-                }
+                msg.x = pos[0];
+                msg.y = pos[1];
+                msg.z = pos[2];
             }
+            
+            pub.publish(msg);
         }
+        
 
         ros::spinOnce();
         rate.sleep();
