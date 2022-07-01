@@ -88,7 +88,7 @@ void pos_sub_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "hover_0");
+    ros::init(argc, argv, "hover_4");
     ros::NodeHandle nh;
     // ros::NodeHandle nh_private("~");
 
@@ -132,6 +132,9 @@ int main(int argc, char **argv)
     // intial service message
     msg.message.data = "Leader is";
     msg.a = -1;
+    msg.x = 0.0;
+    msg.y = 0.0;
+    msg.z = 0.0;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
@@ -173,7 +176,7 @@ int main(int argc, char **argv)
 
         if(leader == -1)
         {
-            pub.publish(msg);
+            // pub.publish(msg);
             local_pos_pub.publish(pose);
         }
 
@@ -189,7 +192,7 @@ int main(int argc, char **argv)
         {
             leader_pose.pose.position.x = leader_pos[0];
             leader_pose.pose.position.y = leader_pos[1];
-            leader_pose.pose.position.z = leader_pos[2];
+            leader_pose.pose.position.z = leader_pos[2]-1;
 
             // ROS_INFO("Leader coords = %f %f %f",leader_pos[0],leader_pos[1],leader_pos[2]);
 
