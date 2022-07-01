@@ -225,13 +225,19 @@ int main(int argc, char **argv)
 
         if(leader == drone)
         {            
-            msg.x = pos[0];
-            msg.y = pos[1];
-            msg.z = pos[2];    
-            pub.publish(msg);
+            // msg.x = pos[0];
+            // msg.y = pos[1];
+            // msg.z = pos[2];    
+            // pub.publish(msg);
 
             if(traj_flag==false)
-            local_pos_pub.publish(home_pose);
+            {
+                local_pos_pub.publish(home_pose);
+                msg.x = home_pose.pose.position.x;
+                msg.y = home_pose.pose.position.y;
+                msg.z = home_pose.pose.position.z;    
+                pub.publish(msg);
+            }
 
             else if(traj_flag==true)
             {                
@@ -239,6 +245,11 @@ int main(int argc, char **argv)
                 traj_pose.pose.position.y = traj_points[a][1];
                 traj_pose.pose.position.z = traj_points[a][2];
                 local_pos_pub.publish(traj_pose);
+
+                msg.x = traj_pose.pose.position.x;
+                msg.y = traj_pose.pose.position.y;
+                msg.z = traj_pose.pose.position.z; 
+                pub.publish(msg);
 
                 // ros::spinOnce();
 
