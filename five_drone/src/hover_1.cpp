@@ -99,7 +99,7 @@ bool sq_trajectory_callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::R
     }
 
     res.success=true;
-    ROS_INFO("drone 1 is given square trajecetory");
+    ROS_INFO("drone %d is given square trajecetory",drone);
 
     return true;
 }

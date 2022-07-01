@@ -11,16 +11,17 @@
 #include <geographic_msgs/GeoPoseStamped.h>
 
 mavros_msgs::State current_state;
-geometry_msgs::PoseStamped pose, pose_data, leader_pose;
+geometry_msgs::PoseStamped home_pose, pose_data, leader_pose,traj_pose;
 // sensor_msgs::NavSatFix leader_pos_data;
 // geographic_msgs::GeoPoseStamped tar_pos;
 float pos[3],leader_pos[3];
 const int drone = 3;
 int initial_x = 0, initial_y = 0, initial_z = 2;
-bool flag=false;
+bool traj_flag=false;
 five_drone::Data msg;
 float dif_x,dif_y,dif_z;
 int leader = -1;
+int traj_points[4][3];
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
@@ -36,11 +37,11 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
 
         msg.message.data = "Leader is";
         msg.a = leader;
-        flag = true;
+        // flag = true;
 
-        pose.pose.position.x = initial_x;
-        pose.pose.position.y = initial_y;
-        pose.pose.position.z = initial_z+1;        
+        home_pose.pose.position.x = initial_x;
+        home_pose.pose.position.y = initial_y;
+        home_pose.pose.position.z = initial_z+1;        
     }
     else
     {
@@ -54,18 +55,55 @@ bool callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
         msg.z = 0.0;
         // pub.publish(msg);
 
-        pose.pose.position.x = initial_x;
-        pose.pose.position.y = initial_y;
-        pose.pose.position.z = initial_z;
+        home_pose.pose.position.x = initial_x;
+        home_pose.pose.position.y = initial_y;
+        home_pose.pose.position.z = initial_z;
 
-        flag=false;
+        // flag=false;
     }
     res.success=true;
     ROS_INFO("rosservice was called");
-    ROS_INFO("Leader is %d",leader);
 
     return true;
 }
+
+bool sq_trajectory_callback(std_srvs::SetBool::Request &req,std_srvs::SetBool::Response &res)
+{
+    if(req.data == true)
+    {
+        res.message="service true postive";
+
+        traj_points[0][0] = 5;
+        traj_points[0][1] = 0;
+        traj_points[0][2] = 3;
+        
+        traj_points[1][0] = 5;
+        traj_points[1][1] = 5;
+        traj_points[1][2] = 3;
+
+        traj_points[2][0] = 0;
+        traj_points[2][1] = 5;
+        traj_points[2][2] = 7;
+
+        traj_points[3][0] = 0;
+        traj_points[3][1] = 0;
+        traj_points[3][2] = 3;
+
+        traj_flag=true;
+    }
+
+    else
+    {
+        res.message="service true neg";
+        traj_flag=false;
+    }
+
+    res.success=true;
+    ROS_INFO("drone %d is given square trajecetory",drone);
+
+    return true;
+}
+
 
 void leader_callback(five_drone::Data msg)
 {
@@ -89,7 +127,7 @@ void pos_sub_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "hover_3");
+    ros::init(argc, argv, "hover_1");
     ros::NodeHandle nh;
     // ros::NodeHandle nh_private("~");
 
@@ -104,6 +142,9 @@ int main(int argc, char **argv)
 
     ros::ServiceServer server=nh.advertiseService("make_leader",callback);
     ros::ServiceClient client=nh.serviceClient<std_srvs::SetBool>("make_leader");
+
+    ros::ServiceServer sq_server=nh.advertiseService("follow_sq",sq_trajectory_callback);
+    ros::ServiceClient sq_client=nh.serviceClient<std_srvs::SetBool>("follow_sq");
 
     ros::Publisher pub = nh.advertise<five_drone::Data>("/leader_who",10);
     ros::Subscriber leader_sub = nh.subscribe<five_drone::Data>
@@ -126,9 +167,9 @@ int main(int argc, char **argv)
     }
 
     // geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = initial_x;
-    pose.pose.position.y = initial_y;
-    pose.pose.position.z = initial_z;
+    home_pose.pose.position.x = initial_x;
+    home_pose.pose.position.y = initial_y;
+    home_pose.pose.position.z = initial_z;
 
     // intial service message
     msg.message.data = "Leader is";
@@ -139,7 +180,7 @@ int main(int argc, char **argv)
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
-        local_pos_pub.publish(pose);
+        local_pos_pub.publish(home_pose);
         ros::spinOnce();
         rate.sleep();
     }
@@ -151,6 +192,10 @@ int main(int argc, char **argv)
     arm_cmd.request.value = true;
 
     ros::Time last_request = ros::Time::now();
+
+
+    int a =0;
+    float traj_dist;
 
     while(ros::ok()){
         if( current_state.mode != "OFFBOARD" &&
@@ -170,15 +215,12 @@ int main(int argc, char **argv)
                 last_request = ros::Time::now();
             }
         }
-
-
-        // if(flag==false)
-        local_pos_pub.publish(pose);
+        
 
         if(leader == -1)
         {
             // pub.publish(msg);
-            local_pos_pub.publish(pose);
+            local_pos_pub.publish(home_pose);
         }
 
         if(leader == drone)
@@ -187,6 +229,28 @@ int main(int argc, char **argv)
             msg.y = pos[1];
             msg.z = pos[2];    
             pub.publish(msg);
+
+            if(traj_flag==false)
+            local_pos_pub.publish(home_pose);
+
+            else if(traj_flag==true)
+            {                
+                traj_pose.pose.position.x = traj_points[a][0];
+                traj_pose.pose.position.y = traj_points[a][1];
+                traj_pose.pose.position.z = traj_points[a][2];
+                local_pos_pub.publish(traj_pose);
+
+                // ros::spinOnce();
+
+                traj_dist = sqrt( pow(pos[0]-traj_points[a][0],2) + pow(pos[1]-traj_points[a][1],2) + pow(pos[2]-traj_points[a][2],2) );
+                // ROS_INFO("dist = %f",traj_dist);
+                if(traj_dist < 0.3)
+                {
+                    a++;
+                    a = a%4;
+                }
+                
+            }
         }
 
         if(leader != drone && leader != -1)
